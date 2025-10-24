@@ -5,22 +5,30 @@ import re
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from transformers import pipeline
+from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 
 # -----------------------------
 # Initialize AI Models
 # -----------------------------
 st.set_page_config(page_title="AutoMind AI Pro", layout="wide")
-st.title("🧠 AutoMind AI Pro — Ultimate Interactive Dashboard")
+st.title("🧠 AutoMind AI Pro — Ultimate AI Dashboard")
 
-st.markdown("### ✨ Features: AI Q&A, Plagiarism Checker, Summarizer, Word Extractor, Chatbot, Quotes, Tasks")
+st.markdown("### Features: AI Chatbot, Q&A, Plagiarism, Summarizer, Word Extractor, Tasks, Quotes")
 
-# AI Question Answering pipeline (HuggingFace)
+# Load AI models
 @st.cache_resource(show_spinner=False)
 def load_qa_model():
     return pipeline("question-answering", model="distilbert-base-cased-distilled-squad")
 
 qa_model = load_qa_model()
+
+@st.cache_resource(show_spinner=False)
+def load_chat_model():
+    tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-small")
+    model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-small")
+    return tokenizer, model
+
+chat_tokenizer, chat_model = load_chat_model()
 
 # -----------------------------
 # Global States
@@ -52,26 +60,18 @@ def extract_words(text):
     words = re.findall(r'\b\w+\b', text.lower())
     return sorted(set(words))
 
-# Mini Chatbot
-def chatbot_reply(user_input):
-    user_input = user_input.lower()
-    greetings = ["hi", "hello", "hey"]
-    if any(g in user_input for g in greetings):
-        return random.choice(["Hello! How are you?", "Hey there! 😊", "Hi! Nice to meet you!"])
-    elif "your name" in user_input:
-        return "I am AutoMind AI Pro 🤖, your interactive assistant!"
-    elif "task" in user_input:
-        return f"You currently have {len(st.session_state.tasks)} tasks."
-    elif "quote" in user_input:
-        return random.choice(quotes)
-    else:
-        return "I am learning every day! 😄"
-
-# Plagiarism Checker (basic cosine similarity)
+# Plagiarism Checker (cosine similarity)
 def check_plagiarism(text, reference):
     vectorizer = TfidfVectorizer().fit_transform([text, reference])
     similarity = cosine_similarity(vectorizer[0:1], vectorizer[1:2])
     return round(float(similarity[0][0])*100,2)
+
+# AI Chatbot
+def chatbot_reply(user_input):
+    new_user_input_ids = chat_tokenizer.encode(user_input + chat_tokenizer.eos_token, return_tensors='pt')
+    chat_history_ids = chat_model.generate(new_user_input_ids, max_length=1000, pad_token_id=chat_tokenizer.eos_token_id)
+    response = chat_tokenizer.decode(chat_history_ids[:, new_user_input_ids.shape[-1]:][0], skip_special_tokens=True)
+    return response
 
 # -----------------------------
 # UI Sections
@@ -84,7 +84,7 @@ quotes = [
 ]
 
 # -----------------------------
-# Column Layout
+# Layout Columns
 # -----------------------------
 col1, col2 = st.columns([1,2])
 
@@ -118,7 +118,7 @@ with col2:
         st.write(f"**Unique Words ({len(words)}):**")
         st.write(words)
 
-    st.subheader("🤖 Mini Chatbot")
+    st.subheader("🤖 AI Chatbot")
     user_msg = st.text_input("Talk to AutoMind AI:")
     if st.button("Send Message"):
         reply = chatbot_reply(user_msg)
