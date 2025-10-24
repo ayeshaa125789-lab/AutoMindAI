@@ -1,108 +1,77 @@
-# 🧠 AutoMind AI – Smart Email Automation Dashboard (Single File Version)
-# ---------------------------------------------------------
 import streamlit as st
-import imaplib, email
-from email.header import decode_header
-import os
-from dotenv import load_dotenv
+import random
 from datetime import datetime
 
-# Load environment variables (.env)
-load_dotenv()
-
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
-
 # -----------------------------
-# Helper Functions
+# Extra Features (No .env needed)
 # -----------------------------
 
-def decode_header_value(hdr):
-    if not hdr:
-        return ""
-    parts = decode_header(hdr)
-    decoded = ""
-    for text, enc in parts:
-        if isinstance(text, bytes):
-            decoded += text.decode(enc or "utf-8", errors="ignore")
-        else:
-            decoded += text
-    return decoded
+# Inspirational Quotes
+quotes = [
+    "Believe in yourself! 💪",
+    "Every day is a new opportunity 🌟",
+    "Success is the sum of small efforts repeated daily 🚀",
+    "Keep pushing forward, no matter what 🌈"
+]
 
+# Simple To-Do List
+if 'tasks' not in st.session_state:
+    st.session_state.tasks = []
 
-def fetch_latest_emails(limit=5):
-    try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com")
-        mail.login(EMAIL_USER, EMAIL_PASS)
-        mail.select("inbox")
+def add_task(task):
+    if task:
+        st.session_state.tasks.append({"task": task, "time": datetime.now().strftime("%H:%M:%S")})
 
-        result, data = mail.search(None, "ALL")
-        mail_ids = data[0].split()
-        latest_ids = mail_ids[-limit:]
+def remove_task(index):
+    st.session_state.tasks.pop(index)
 
-        emails = []
-        for i in reversed(latest_ids):
-            res, msg_data = mail.fetch(i, "(RFC822)")
-            raw_msg = msg_data[0][1]
-            msg = email.message_from_bytes(raw_msg)
-
-            subject = decode_header_value(msg["Subject"])
-            sender = decode_header_value(msg["From"])
-            date = decode_header_value(msg["Date"])
-
-            summary = ""
-            if msg.is_multipart():
-                for part in msg.walk():
-                    content_type = part.get_content_type()
-                    if content_type == "text/plain":
-                        try:
-                            summary = part.get_payload(decode=True).decode("utf-8")[:120]
-                        except:
-                            pass
-                        break
-            else:
-                summary = msg.get_payload(decode=True).decode("utf-8", errors="ignore")[:120]
-
-            emails.append({
-                "from": sender,
-                "subject": subject,
-                "date": date,
-                "summary": summary
-            })
-
-        mail.logout()
-        return emails
-
-    except Exception as e:
-        st.error(f"Error fetching emails: {e}")
-        return []
-
+# Simple Text Summarizer (2-line summary)
+def summarize_text(text):
+    lines = text.strip().split('\n')
+    if len(lines) > 2:
+        return "\n".join(lines[:2]) + "..."
+    return text
 
 # -----------------------------
 # Streamlit Dashboard
 # -----------------------------
-st.set_page_config(page_title="AutoMind AI", layout="wide")
-st.title("🧠 AutoMind AI – Smart Email Automation Dashboard")
-st.markdown("### Manage your emails smartly with AI 💌")
+st.set_page_config(page_title="AutoMind AI + Extras", layout="wide")
+st.title("🧠 AutoMind AI Dashboard — Email + Extras")
 
-col1, col2 = st.columns([1, 3])
+st.markdown("### ✨ Fun Features (No Email Required)")
 
-with col1:
-    limit = st.number_input("Number of latest emails to fetch:", 1, 20, 5)
-    fetch_btn = st.button("📩 Fetch Emails")
+# -----------------------------
+# Inspirational Quote
+# -----------------------------
+st.subheader("💡 Daily Inspiration")
+if st.button("Generate Quote"):
+    st.info(random.choice(quotes))
 
-with col2:
-    if fetch_btn:
-        if not EMAIL_USER or not EMAIL_PASS:
-            st.error("⚠️ Please set EMAIL_USER and EMAIL_PASS in your .env file.")
-        else:
-            emails = fetch_latest_emails(limit)
-            if emails:
-                st.success(f"Fetched {len(emails)} emails successfully!")
-                for em in emails:
-                    with st.expander(f"📧 {em['subject']}"):
-                        st.write(f"**From:** {em['from']}")
-                        st.write(f"**Date:** {em['date']}")
-                        st.write(f"**Summary:** {em['summary']}")
-            else:
-                st.warning("No emails found or failed to fetch.")
+# -----------------------------
+# To-Do List
+# -----------------------------
+st.subheader("📝 Task Manager")
+task_input = st.text_input("Enter a new task:")
+if st.button("Add Task"):
+    add_task(task_input)
+
+for idx, t in enumerate(st.session_state.tasks):
+    st.write(f"{idx+1}. {t['task']} (added at {t['time']})")
+    if st.button(f"Remove {idx+1}", key=idx):
+        remove_task(idx)
+
+# -----------------------------
+# Text Summarizer
+# -----------------------------
+st.subheader("✂️ Mini Text Summarizer")
+text_to_summarize = st.text_area("Paste your text here:")
+if st.button("Summarize Text"):
+    summary = summarize_text(text_to_summarize)
+    st.success(summary)
+
+# -----------------------------
+# Simple Analytics
+# -----------------------------
+st.subheader("📊 Task Analytics")
+num_tasks = len(st.session_state.tasks)
+st.bar_chart({"Number of tasks": [num_tasks]})
